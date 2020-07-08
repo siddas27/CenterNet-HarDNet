@@ -56,10 +56,11 @@ def prefetch_test(opt):
   split = 'val' if not opt.trainval else 'test'
   dataset = Dataset(opt, split)
   detector = Detector(opt)
-  
+  detector.model.v2_transform()
+    
   data_loader = torch.utils.data.DataLoader(
     PrefetchDataset(opt, dataset, detector.pre_process), 
-    batch_size=1, shuffle=False, num_workers=1, pin_memory=True)
+    batch_size=1, shuffle=False, num_workers=1, pin_memory=False)
 
   results = {}
   num_iters = len(dataset)
@@ -91,7 +92,7 @@ def test(opt):
   split = 'val' if not opt.trainval else 'test'
   dataset = Dataset(opt, split)
   detector = Detector(opt)
-
+  
   results = {}
   num_iters = len(dataset)
   bar = Bar('{}'.format(opt.exp_id), max=num_iters)

@@ -58,15 +58,14 @@ class opts(object):
                              choices=['white', 'black'])
     
     # model
-    self.parser.add_argument('--arch', default='dla_34', 
+    self.parser.add_argument('--arch', default='hardnet_68', 
                              help='model architecture. Currently tested'
-                                  'res_18 | res_101 | resdcn_18 | resdcn_101 |'
-                                  'dlav0_34 | dla_34 | hourglass')
+                                  'hardnet_85 | hardnet_68')
     self.parser.add_argument('--head_conv', type=int, default=-1,
                              help='conv layer channels for output head'
                                   '0 for no conv layer'
                                   '-1 for default setting: '
-                                  '64 for resnets and 256 for dla.')
+                                  '256.')
     self.parser.add_argument('--down_ratio', type=int, default=4,
                              help='output stride. Currently only supports 4.')
 
@@ -157,9 +156,9 @@ class opts(object):
                              help='regression loss: sl1 | l1 | l2')
     self.parser.add_argument('--hm_weight', type=float, default=1,
                              help='loss weight for keypoint heatmaps.')
-    self.parser.add_argument('--off_weight', type=float, default=1,
+    self.parser.add_argument('--off_weight', type=float, default=0.5,
                              help='loss weight for keypoint local offsets.')
-    self.parser.add_argument('--wh_weight', type=float, default=0.1,
+    self.parser.add_argument('--wh_weight', type=float, default=0.05,
                              help='loss weight for bounding box size.')
     # multi_pose
     self.parser.add_argument('--hp_weight', type=float, default=1,
@@ -244,7 +243,7 @@ class opts(object):
     opt.reg_hp_offset = (not opt.not_reg_hp_offset) and opt.hm_hp
 
     if opt.head_conv == -1: # init default head_conv
-      opt.head_conv = 256 if 'dla' in opt.arch else 64
+      opt.head_conv = 256 
     opt.pad = 127 if 'hourglass' in opt.arch else 31
     opt.num_stacks = 2 if opt.arch == 'hourglass' else 1
 
@@ -285,7 +284,6 @@ class opts(object):
     input_h, input_w = dataset.default_resolution
     opt.mean, opt.std = dataset.mean, dataset.std
     opt.num_classes = dataset.num_classes
-
     # input_h(w): opt.input_h overrides opt.input_res overrides dataset default
     input_h = opt.input_res if opt.input_res > 0 else input_h
     input_w = opt.input_res if opt.input_res > 0 else input_w
@@ -315,9 +313,7 @@ class opts(object):
     elif opt.task == 'ctdet':
       # assert opt.dataset in ['pascal', 'coco']
       opt.heads = {'hm': opt.num_classes,
-                   'wh': 2 if not opt.cat_spec_wh else 2 * opt.num_classes}
-      if opt.reg_offset:
-        opt.heads.update({'reg': 2})
+                   'wh': 4 if not opt.cat_spec_wh else 2 * opt.num_classes}
     elif opt.task == 'multi_pose':
       # assert opt.dataset in ['coco_hp']
       opt.flip_idx = dataset.flip_idx

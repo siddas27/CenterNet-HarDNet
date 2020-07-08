@@ -19,10 +19,9 @@ class CtdetLoss(torch.nn.Module):
     super(CtdetLoss, self).__init__()
     self.crit = torch.nn.MSELoss() if opt.mse_loss else FocalLoss()
     self.crit_reg = RegL1Loss() if opt.reg_loss == 'l1' else \
-              RegLoss() if opt.reg_loss == 'sl1' else None
-    self.crit_wh = torch.nn.L1Loss(reduction='sum') if opt.dense_wh else \
-              NormRegL1Loss() if opt.norm_wh else \
-              RegWeightedL1Loss() if opt.cat_spec_wh else self.crit_reg
+                    RegLoss()   if opt.reg_loss == 'sl1' else None
+    self.crit_wh =  RegWeightedL1Loss() if opt.cat_spec_wh else \
+                    torch.nn.L1Loss(reduction='sum')
     self.opt = opt
 
   def forward(self, outputs, batch):
@@ -48,29 +47,25 @@ class CtdetLoss(torch.nn.Module):
 
       hm_loss += self.crit(output['hm'], batch['hm']) / opt.num_stacks
       if opt.wh_weight > 0:
-        if opt.dense_wh:
-          mask_weight = batch['dense_wh_mask'].sum() + 1e-4
-          wh_loss += (
-            self.crit_wh(output['wh'] * batch['dense_wh_mask'],
-            batch['dense_wh'] * batch['dense_wh_mask']) / 
-            mask_weight) / opt.num_stacks
-        elif opt.cat_spec_wh:
+        if opt.cat_spec_wh:
           wh_loss += self.crit_wh(
             output['wh'], batch['cat_spec_mask'],
             batch['ind'], batch['cat_spec_wh']) / opt.num_stacks
         else:
-          wh_loss += self.crit_reg(
-            output['wh'], batch['reg_mask'],
-            batch['ind'], batch['wh']) / opt.num_stacks
-      
-      if opt.reg_offset and opt.off_weight > 0:
-        off_loss += self.crit_reg(output['reg'], batch['reg_mask'],
-                             batch['ind'], batch['reg']) / opt.num_stacks
+          mask_weight = batch['dense_wh_mask'].sum() + 1e-4
+          out_wh  = output['wh'][:,:2,:,:]
+          out_off = output['wh'][:,2:,:,:]
+          wh_loss += (
+            self.crit_wh(out_wh  * batch['dense_wh_mask'],
+            batch['dense_wh'] * batch['dense_wh_mask'])  / 
+            mask_weight) / opt.num_stacks
+          off_loss += (self.crit_wh(out_off            * batch['dense_wh_mask'],
+                                    batch['dense_off'] * batch['dense_wh_mask']) /
+                       mask_weight) / opt.num_stacks
         
-    loss = opt.hm_weight * hm_loss + opt.wh_weight * wh_loss + \
-           opt.off_weight * off_loss
+    loss = opt.hm_weight * hm_loss + opt.wh_weight * wh_loss + opt.off_weight * off_loss
     loss_stats = {'loss': loss, 'hm_loss': hm_loss,
-                  'wh_loss': wh_loss, 'off_loss': off_loss}
+                  'wh_loss': wh_loss, 'off_loss':off_loss}
     return loss, loss_stats
 
 class CtdetTrainer(BaseTrainer):

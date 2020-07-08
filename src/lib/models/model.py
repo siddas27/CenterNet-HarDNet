@@ -6,19 +6,10 @@ import torchvision.models as models
 import torch
 import torch.nn as nn
 import os
-
-from .networks.msra_resnet import get_pose_net
-from .networks.dlav0 import get_pose_net as get_dlav0
-from .networks.pose_dla_dcn import get_pose_net as get_dla_dcn
-from .networks.resnet_dcn import get_pose_net as get_pose_net_dcn
-from .networks.large_hourglass import get_large_hourglass_net
+from .networks.hardnet import get_pose_net as get_hardnet
 
 _model_factory = {
-  'res': get_pose_net, # default Resnet with deconv
-  'dlav0': get_dlav0, # default DLAup
-  'dla': get_dla_dcn,
-  'resdcn': get_pose_net_dcn,
-  'hourglass': get_large_hourglass_net,
+  'hardnet': get_hardnet,
 }
 
 def create_model(arch, heads, head_conv):

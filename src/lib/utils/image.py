@@ -28,30 +28,34 @@ def get_affine_transform(center,
                          scale,
                          rot,
                          output_size,
-                         shift=np.array([0, 0], dtype=np.float32),
+                         shift=None,
                          inv=0):
     if not isinstance(scale, np.ndarray) and not isinstance(scale, list):
         scale = np.array([scale, scale], dtype=np.float32)
-
+    if shift is None:
+      shift=np.array([output_size[0]/2, output_size[1]/2], dtype=np.float32)
+    else:
+      shift=np.array([shift[0], shift[1]], dtype=np.float32)
     scale_tmp = scale
     src_w = scale_tmp[0]
+    src_h = scale_tmp[1]
     dst_w = output_size[0]
     dst_h = output_size[1]
 
     rot_rad = np.pi * rot / 180
-    src_dir = get_dir([0, src_w * -0.5], rot_rad)
-    dst_dir = np.array([0, dst_w * -0.5], np.float32)
+    src_dir = get_dir([0, src_h * -0.5], rot_rad)
+    dst_dir = np.array([0, dst_h * -0.5], np.float32)
 
     src = np.zeros((3, 2), dtype=np.float32)
     dst = np.zeros((3, 2), dtype=np.float32)
-    src[0, :] = center + scale_tmp * shift
-    src[1, :] = center + src_dir + scale_tmp * shift
-    dst[0, :] = [dst_w * 0.5, dst_h * 0.5]
-    dst[1, :] = np.array([dst_w * 0.5, dst_h * 0.5], np.float32) + dst_dir
+    src[0, :] = center 
+    src[1, :] = center + src_dir 
+    src[2, :] = center + get_dir([src_w * -0.5, 0], rot_rad)
 
-    src[2:, :] = get_3rd_point(src[0, :], src[1, :])
-    dst[2:, :] = get_3rd_point(dst[0, :], dst[1, :])
-
+    dst[0, :] = shift 
+    dst[1, :] = shift + dst_dir
+    dst[2, :] = shift + np.array([dst_w * -0.5, 0], np.float32)
+    
     if inv:
         trans = cv2.getAffineTransform(np.float32(dst), np.float32(src))
     else:
@@ -61,9 +65,14 @@ def get_affine_transform(center,
 
 
 def affine_transform(pt, t):
-    new_pt = np.array([pt[0], pt[1], 1.], dtype=np.float32).T
-    new_pt = np.dot(t, new_pt)
-    return new_pt[:2]
+    if pt.ndim == 2 and pt.shape[0] == 2:
+      new_pt = np.concatenate([pt, np.ones((1,pt.shape[1]))], axis=0)
+      new_pt = np.dot(t, new_pt)
+      return new_pt[:2,:]
+    else:
+      new_pt = np.array([pt[0], pt[1], 1.], dtype=np.float32).T
+      new_pt = np.dot(t, new_pt)
+      return new_pt[:2]
 
 
 def get_3rd_point(a, b):
@@ -134,42 +143,59 @@ def draw_umich_gaussian(heatmap, center, radius, k=1):
   left, right = min(x, radius), min(width - x, radius + 1)
   top, bottom = min(y, radius), min(height - y, radius + 1)
 
-  masked_heatmap  = heatmap[y - top:y + bottom, x - left:x + right]
+  if x + right <= 0 or x - left >= width or y + bottom <= 0 or y - top >= height:
+   return heatmap
+
+  masked_heatmap  = heatmap[ y - top:y + bottom, x - left:x + right ]
   masked_gaussian = gaussian[radius - top:radius + bottom, radius - left:radius + right]
-  if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0: # TODO debug
+  
+  if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0:
     np.maximum(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
   return heatmap
 
-def draw_dense_reg(regmap, heatmap, center, value, radius, is_offset=False):
+
+def draw_dense_reg(regmap, regmask, center, bbox, radius):
   diameter = 2 * radius + 1
-  gaussian = gaussian2D((diameter, diameter), sigma=diameter / 6)
-  value = np.array(value, dtype=np.float32).reshape(-1, 1, 1)
-  dim = value.shape[0]
-  reg = np.ones((dim, diameter*2+1, diameter*2+1), dtype=np.float32) * value
-  if is_offset and dim == 2:
-    delta = np.arange(diameter*2+1) - radius
-    reg[0] = reg[0] - delta.reshape(1, -1)
-    reg[1] = reg[1] - delta.reshape(-1, 1)
+  gaussian = gaussian2D((diameter, diameter), sigma=diameter / 24)
+  gaussian_wt = gaussian / gaussian.sum()
+  gaussian_wt = np.repeat(gaussian_wt.reshape(1,diameter, diameter), 4, axis=0)
+
+  ct  = np.array([(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2], dtype=np.float32)
+  wh  = np.array([ bbox[2] - bbox[0], bbox[3] - bbox[1]], dtype=np.float32).reshape(2, 1, 1)
+  xs = np.repeat(np.arange( diameter ).reshape(1,1,-1), diameter, axis=1)-radius+center[0]
+  ys = np.repeat(np.arange( diameter ).reshape(1,-1,1), diameter, axis=2)-radius+center[1]
+
+  reg = np.ones((2, diameter, diameter), dtype=np.float32) * wh
+  off = np.ones((2, diameter, diameter), dtype=np.float32) * ct.reshape(2, 1, 1) - np.concatenate([xs,ys], axis=0)
+  reg = np.concatenate([reg,off], axis=0)
   
   x, y = int(center[0]), int(center[1])
 
-  height, width = heatmap.shape[0:2]
+  height, width = regmap.shape[1:3]
     
   left, right = min(x, radius), min(width - x, radius + 1)
   top, bottom = min(y, radius), min(height - y, radius + 1)
-
-  masked_heatmap = heatmap[y - top:y + bottom, x - left:x + right]
+  
+  if x + right <= 0 or x - left >= width or y + bottom <= 0 or y - top >= height:
+    return regmap, regmask
+    
   masked_regmap = regmap[:, y - top:y + bottom, x - left:x + right]
-  masked_gaussian = gaussian[radius - top:radius + bottom,
-                             radius - left:radius + right]
   masked_reg = reg[:, radius - top:radius + bottom,
                       radius - left:radius + right]
-  if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0: # TODO debug
-    idx = (masked_gaussian >= masked_heatmap).reshape(
-      1, masked_gaussian.shape[0], masked_gaussian.shape[1])
-    masked_regmap = (1-idx) * masked_regmap + idx * masked_reg
+
+  masked_regmask = regmask[:,y - top:y + bottom, x - left:x + right]
+  masked_gaussian_wt = gaussian_wt[:, radius - top:radius + bottom,
+                                      radius - left:radius + right]
+
+  if min(masked_gaussian_wt.shape) > 0 and min(masked_regmask.shape) > 0: 
+    
+    idx = (masked_gaussian_wt >= masked_regmask)
+    masked_regmap  = (1-idx) * masked_regmap  + idx * masked_reg
+    masked_regmask = (1-idx) * masked_regmask + idx * masked_gaussian_wt
+
   regmap[:, y - top:y + bottom, x - left:x + right] = masked_regmap
-  return regmap
+  regmask[:,  y - top:y + bottom, x - left:x + right] = masked_regmask
+  return regmap, regmask
 
 
 def draw_msra_gaussian(heatmap, center, sigma):

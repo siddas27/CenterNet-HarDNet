@@ -16,6 +16,11 @@ from datasets.dataset_factory import get_dataset
 from trains.train_factory import train_factory
 
 
+def derivative_mod(m, gain):
+    for key in m.state_dict():
+        if key.split('.')[-1] == 'weight':
+            print(key)
+
 def main(opt):
   torch.manual_seed(opt.seed)
   torch.backends.cudnn.benchmark = not opt.not_cuda_benchmark and not opt.test
@@ -30,7 +35,8 @@ def main(opt):
   
   print('Creating model...')
   model = create_model(opt.arch, opt.heads, opt.head_conv)
-  optimizer = torch.optim.Adam(model.parameters(), opt.lr)
+  #optimizer = torch.optim.Adam(model.parameters(), opt.lr)
+  optimizer = torch.optim.SGD(model.parameters(), opt.lr, weight_decay = 1e-4, momentum = 0.9)
   start_epoch = 0
   if opt.load_model != '':
     model, optimizer, start_epoch = load_model(
@@ -59,13 +65,17 @@ def main(opt):
       batch_size=opt.batch_size, 
       shuffle=True,
       num_workers=opt.num_workers,
-      pin_memory=True,
+      pin_memory=False,
       drop_last=True
   )
 
   print('Starting training...')
   best = 1e10
   for epoch in range(start_epoch + 1, opt.num_epochs + 1):
+    if epoch <= 2:
+      cur_lr = opt.lr if epoch == 2 else 5e-5
+      for param_group in optimizer.param_groups:
+        param_group['lr'] = cur_lr
     mark = epoch if opt.save_all else 'last'
     log_dict_train, _ = trainer.train(epoch, train_loader)
     logger.write('epoch: {} |'.format(epoch))
