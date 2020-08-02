@@ -14,6 +14,7 @@ from utils.image import flip, color_aug
 from utils.image import get_affine_transform, affine_transform
 from utils.image import gaussian_radius, draw_umich_gaussian, draw_msra_gaussian
 from utils.image import draw_dense_reg
+from utils.image import blend_truth_mosaic, bbox_correction
 import math
 
 class CTDetDataset(data.Dataset):
@@ -29,7 +30,7 @@ class CTDetDataset(data.Dataset):
     return border // i
   
   
-  def img_transform(self, img, anns, flip_en=True):
+  def img_transform(self, img, anns, flip_en=True, scale_lv=2, out_shift=None, crop=None):
     height, width = img.shape[0], img.shape[1]
     c = np.array([img.shape[1] / 2., img.shape[0] / 2.], dtype=np.float32)
     if self.opt.keep_res:
@@ -39,45 +40,50 @@ class CTDetDataset(data.Dataset):
     else:
       s = [img.shape[1], img.shape[0]]
       input_h, input_w = self.opt.input_h, self.opt.input_w
-
+    
+    crop = [0, 0, input_w, input_h] if crop is None else crop
     flipped = False
-    rot = 0
+    rot = crpsh_x = crpsh_y =0
     img_s = [img.shape[1], img.shape[0]]
     
     if self.split == 'train':
-      s = np.random.choice([
-         256, 320, 384, 448, 512, 576, 640, 704, 768, 832])
-      sd = np.random.rand()*0.8 - 0.4 + 1
+      if scale_lv == 2:
+        s = np.random.choice([ 256, 320, 384, 448, 512, 576, 640, 704, 768, 832])
+      elif scale_lv == 1:
+        s = np.random.choice([ 512, 576, 640, 704, 768, 832])
+      else:
+        s = np.random.choice([ 192, 256, 320, 384, 448, 512])
+      
+      distortion = 0.5
+      sd = np.random.random()*distortion*2 - distortion + 1
       if img.shape[0] > img.shape[1]:
         s = [s, s*(img.shape[0] / img.shape[1])*sd]
       else:
         s = [s*(img.shape[1] / img.shape[0])*sd, s]
 
-      w_border = self._get_border(128, img.shape[1])
-      h_border = self._get_border(128, img.shape[0])
-      c[0] = np.random.randint(low=w_border, high=img.shape[1] - w_border)
-      c[1] = np.random.randint(low=h_border, high=img.shape[0] - h_border)
+      crpsh_x = max( (s[0] - (crop[2]-crop[0])) / 2, (crop[2]-crop[0])*0.2)
+      crpsh_y = max( (s[1] - (crop[3]-crop[1])) / 2, (crop[3]-crop[1])*0.2)
 
       if flip_en and np.random.random() < self.opt.flip:
         flipped = True
         img = img[:, ::-1, :]
-        c[0] =  width - c[0] - 1
 
+    out_center = [input_w/2, input_h/2] if out_shift is None else out_shift
+    out_center[0] += (np.random.random()*2-1) * crpsh_x
+    out_center[1] += (np.random.random()*2-1) * crpsh_y
+    
     trans_input = get_affine_transform(
-      c, img_s, rot, s, [input_w/2, input_h/2])
+      c, img_s, rot, s, out_center)
+      
     inp = cv2.warpAffine(img, trans_input,
                          (input_w, input_h),
                          flags=cv2.INTER_LINEAR)
     inp = (inp.astype(np.float32) / 255.)
     if self.split == 'train' and not self.opt.no_color_aug:
       color_aug(self._data_rng, inp, self._eig_val, self._eig_vec)
-    inp = (inp - self.mean) / self.std
-    inp = inp.transpose(2, 0, 1)
 
     output_h = input_h // self.opt.down_ratio
     output_w = input_w // self.opt.down_ratio
-    out_s = [s[0] * output_w/input_w, s[1]*output_h/input_h ]
-    trans_output = get_affine_transform(c, img_s, rot, out_s, [output_w/2,output_h/2])
     
     num_objs = min(len(anns), self.max_objs)
     ann_list = []
@@ -85,36 +91,96 @@ class CTDetDataset(data.Dataset):
     for k in range(num_objs):
       ann = anns[k]
       bbox = self._coco_box_to_bbox(ann['bbox'])
-      segm  = ann['segmentation']
       cls_id = int(self.cat_ids[ann['category_id']])
       if flipped:
-          bbox[[0, 2]] = width - bbox[[2, 0]] - 1
-      bboxi1 = affine_transform(bbox[:2], trans_input)
-      bboxi2 = affine_transform(bbox[2:], trans_input)
-      bbox[:2] = affine_transform(bbox[:2], trans_output)
-      bbox[2:] = affine_transform(bbox[2:], trans_output)
-      ann_list.append((bbox, cls_id))
+          bbox[[0, 2]] = width - bbox[[2, 0]]
+      bbox[:2] = affine_transform(bbox[:2], trans_input)
+      bbox[2:] = affine_transform(bbox[2:], trans_input)
+      segm  = ann['segmentation']
+      
+      # Correct the bbox that was cropped by image boundary
+      bbox_segm = bbox_correction(segm, trans_input, flipped, width, crop)
+      ann_list.append([bbox, cls_id, bbox_segm])
+      
       #end of objs loop
-    meta = (c, s)     
+    meta = (c, s)
+    inp = (inp - self.mean) / self.std
+    inp = inp.transpose(2, 0, 1)
+    
     return inp, ann_list, output_w, output_h, meta
 
-    
-  def __getitem__(self, index):
-    num_classes = self.num_classes
+  
+  def get_img_ann(self, index=None, scale_lv=2, out_shift=None, crop=None, flip_en=True):
+    index = np.random.randint(len(self.images)) if index is None else index
     img_id = self.images[index]
     file_name = self.coco.loadImgs(ids=[img_id])[0]['file_name']
     img_path = os.path.join(self.img_dir, file_name)
     ann_ids = self.coco.getAnnIds(imgIds=[img_id])
+    
     anns = self.coco.loadAnns(ids=ann_ids)
-    num_objs = min(len(anns), self.max_objs)
-    
     img = cv2.imread(img_path)
-    inp, ann_list, output_w, output_h, meta = self.img_transform(img, anns)
     
-    img = inp.transpose(1, 2, 0)
-    img = (img*self.std + self.mean)*255
-      
+    return self.img_transform(img, anns, flip_en=flip_en, scale_lv=scale_lv, out_shift=out_shift, crop=crop)
+
+
+  def mosaic_mix(self, index):
+    assert not self.opt.keep_res, 'Error: mosaic augmentation requies fixed input size'
+    input_h, input_w = self.opt.input_h, self.opt.input_w
+    min_offset = 0.5
+    max_offset = 0.8
+    cut_x = np.random.randint(int(input_w * min_offset), int(input_w * max_offset))
+    cut_y = np.random.randint(int(input_h * min_offset), int(input_h * max_offset))
+
+    out_shift = [ [cut_x/2,            cut_y /2        ], [(input_w - cut_x)/2 + cut_x,            cut_y /2],
+                  [cut_x/2, (input_h - cut_y)/2 + cut_y], [(input_w - cut_x)/2 + cut_x, (input_h - cut_y)/2 + cut_y] ]
+  
+    crop = [ [0,0,      cut_x,           cut_y ], [cut_x, 0,     (input_w - cut_x),           cut_y], 
+             [0, cut_y, cut_x,(input_h - cut_y)], [cut_x, cut_y, (input_w - cut_x),(input_h - cut_y)] ]
     
+    areas  = [cut_x           * cut_y,           (input_w-cut_x) * cut_y,
+              cut_x           * (input_h-cut_y), (input_w-cut_x) * (input_h-cut_y)]
+    
+    for i in range(4):
+      scale_lv = 1 if areas[i]/(input_w*input_h) > 0.2 else 0
+      if i == 0:
+        out_img, ann, output_w, output_h, meta = \
+          self.get_img_ann(index, scale_lv=scale_lv, out_shift=out_shift[i], crop=crop[i])
+        ann_list = blend_truth_mosaic (out_img, out_img, ann, input_w, input_h, cut_x, cut_y, i)
+      else:
+        img, ann, _,_,_ = self.get_img_ann(scale_lv=scale_lv, out_shift=out_shift[i], crop=crop[i])
+        ann = blend_truth_mosaic (out_img,     img, ann, input_w, input_h, cut_x, cut_y, i)
+        ann_list += ann        
+    return out_img, ann_list, output_w, output_h, meta
+
+    
+  def __getitem__(self, index):
+    img_id = self.images[index]
+  
+    inp, ann_list, output_w, output_h, meta = self.get_img_ann(index, scale_lv=2)
+    
+    # TBD: Mosaic augmentation requires large input image size
+    # Increase input image size from 512x512 to 800x800 or larger and
+    # adjust the scale level to avoid the mosaic boundary to become 
+    # a significant boundary of objects
+    #inp, ann_list, output_w, output_h, meta = self.mosaic_mix( index )
+    
+    if True: # Augmnetation visualization
+      img = inp.transpose(1, 2, 0)
+      img = (img*self.std + self.mean)*255
+      for an in ann_list:
+        bbox, cls_id, bbox2 = an
+        bbox = bbox.astype(np.int32)
+        bbox2 = bbox2.astype(np.int32)
+        bbox[[0, 2]] = np.clip(bbox[[0, 2]], 0, img.shape[1])
+        bbox[[1, 3]] = np.clip(bbox[[1, 3]], 0, img.shape[0])
+        if bbox[2] - bbox[0] > 0 and bbox[3] - bbox[1] > 0:
+          cv2.rectangle(img, (bbox[0],bbox[1]), (bbox[2],bbox[3]), (255,0,0), 3)
+        if bbox2.shape[0] > 0:
+          cv2.rectangle(img, (bbox2[0],bbox2[1]), (bbox2[2],bbox2[3]), (0,255,0), 2)
+      cv2.imwrite('temp_%d.jpg'%(index),img)
+    
+    num_objs = min(len(ann_list), self.max_objs)
+    num_classes = self.num_classes
     hm = np.zeros((num_classes, output_h, output_w), dtype=np.float32)
     wh = np.zeros((self.max_objs, 2), dtype=np.float32)
     dense_reg = np.zeros((4, output_h, output_w), dtype=np.float32)
@@ -134,19 +200,25 @@ class CTDetDataset(data.Dataset):
     bgs = np.concatenate([xs,ys], axis=1)
     
     for k in range(num_objs):
-      bbox, cls_id = ann_list[k]
+      bbox, cls_id, bbox2 = ann_list[k]
+      
+      bbox /= self.opt.down_ratio
+      bbox2 /= self.opt.down_ratio
 
       oh, ow = bbox[3] - bbox[1], bbox[2] - bbox[0]
-      bbox[[0, 2]] = np.clip(bbox[[0, 2]], 0, output_w - 1)
-      bbox[[1, 3]] = np.clip(bbox[[1, 3]], 0, output_h - 1)
+      bbox[[0, 2]] = np.clip(bbox[[0, 2]], 0, output_w)
+      bbox[[1, 3]] = np.clip(bbox[[1, 3]], 0, output_h)
       h, w = bbox[3] - bbox[1], bbox[2] - bbox[0]
       
+      if (h/(oh+0.01) < 0.9 or  w/(ow+0.01) < 0.9) and bbox2.shape[0] > 0:
+        bbox = bbox2
+        h, w = bbox[3] - bbox[1], bbox[2] - bbox[0]
       #get center of box
       ct = np.array(
           [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2], dtype=np.float32)
-      ct_int = ct.round().astype(np.int32)
+      ct_int = ct.astype(np.int32)
 
-      if (h > 4 or h == oh) and (w > 4 or w == ow):
+      if (h > 2 or h/(oh+0.01) > 0.5) and (w > 2 or w/(ow+0.01) > 0.5):
         radius = gaussian_radius((math.ceil(h), math.ceil(w)))
         radius = max(0, int(radius))
         radius = self.opt.hm_gauss if self.opt.mse_loss else radius

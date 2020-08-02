@@ -254,3 +254,98 @@ def color_aug(data_rng, image, eig_val, eig_vec):
     for f in functions:
         f(data_rng, image, gs, gs_mean, 0.4)
     lighting_(data_rng, image, 0.1, eig_val, eig_vec)
+
+
+def filter_truth(anns, sx, sy, xd, yd):
+    ann_list = []
+    for i in range(len(anns)):
+      bbox, cls_id = anns[i]
+      bbox[ 0] = np.clip(bbox[ 0], sx, xd)
+      bbox[ 2] = np.clip(bbox[ 2], sx, xd)
+
+      bbox[ 1] = np.clip(bbox[ 1], sy, yd)
+      bbox[ 3] = np.clip(bbox[ 3], sy, yd)
+      if (bbox[ 2] - bbox[ 0]) > 1 and (bbox[ 3] - bbox[ 1]) > 1:
+        ann_list.append( [bbox, cls_id] )
+
+    return ann_list
+
+
+def blend_truth_mosaic(out_img, img, anns, w, h, cut_x, cut_y, i_mixup):
+
+    if i_mixup == 0:
+        anns = filter_truth(anns, 0, 0, cut_x, cut_y)
+        out_img[:,:cut_y, :cut_x] = img[:,:cut_y, :cut_x]
+    if i_mixup == 1:
+        anns = filter_truth(anns, cut_x, 0, w, cut_y)
+        out_img[:,:cut_y, cut_x:] = img[:,:cut_y, cut_x:]
+    if i_mixup == 2:
+        anns = filter_truth(anns, 0, cut_y, cut_x, h)
+        out_img[:,cut_y:, :cut_x] = img[:,cut_y:, :cut_x]
+    if i_mixup == 3:
+        anns = filter_truth(anns, cut_x, cut_y, w, h)
+        out_img[:,cut_y:, cut_x:] = img[:,cut_y:, cut_x:]
+
+    return anns
+
+
+def bbox_correction(segm, trans_input, flipped, width, crop):
+    x0, y0, xe, ye = crop
+
+    if isinstance(segm, list):
+        xs = np.concatenate([segm[i][0::2] for i in range(len(segm))])
+        ys = np.concatenate([segm[i][1::2] for i in range(len(segm))])
+        if flipped:
+          xs = width - xs
+        segm_pts = affine_transform(np.array([xs, ys]), trans_input)
+        rs = np.concatenate([segm_pts[:,1:], segm_pts[:,0:1]], axis=1)
+        ls = np.concatenate([segm_pts[:,-1:], segm_pts[:,:-1]], axis=1)
+        
+        # If an edge between two neighboring points cross the crop boundary
+        # reset the outside point to boundary (x/y separately)
+        x_set0 = np.logical_and(segm_pts[0,:]<x0, np.logical_or(rs[0,:]>=x0, ls[0,:]>=x0))
+        y_set0 = np.logical_and(segm_pts[1,:]<y0, np.logical_or(rs[1,:]>=y0, ls[1,:]>=y0))
+        x_setw = np.logical_and(segm_pts[0,:]>xe, np.logical_or(rs[0,:]<=xe, ls[0,:]<=xe))
+        y_seth = np.logical_and(segm_pts[1,:]>ye, np.logical_or(rs[1,:]<=ye, ls[1,:]<=ye))
+
+        segm_pts[0, x_set0] = x0
+        segm_pts[1, y_set0] = y0
+        segm_pts[0, x_setw] = xe
+        segm_pts[1, y_seth] = ye
+
+        # For those points have x or y being reset, reset their another dimension if:
+        # 1. the other dimension is also out of boundary
+        # 2. at least one of the points that has been reset by the same dimension
+        #    has the another dimension on the other side of the boundary
+        condx0_y0 = np.logical_and(x_set0, segm_pts[1,:]>y0).sum() > 0
+        condx0_yh = np.logical_and(x_set0, segm_pts[1,:]<ye).sum() > 0
+        condy0_x0 = np.logical_and(y_set0, segm_pts[0,:]>x0).sum() > 0
+        condy0_xw = np.logical_and(y_set0, segm_pts[0,:]<xe).sum() > 0
+        condxw_y0 = np.logical_and(x_setw, segm_pts[1,:]>y0).sum() > 0
+        condxw_yh = np.logical_and(x_setw, segm_pts[1,:]<ye).sum() > 0
+        condyh_x0 = np.logical_and(y_seth, segm_pts[0,:]>x0).sum() > 0
+        condyh_xw = np.logical_and(y_seth, segm_pts[0,:]<xe).sum() > 0
+
+        condx_y0 = np.logical_or( np.logical_and(x_set0, condx0_y0), np.logical_and(x_setw, condxw_y0))
+        condx_yh = np.logical_or( np.logical_and(x_set0, condx0_yh), np.logical_and(x_setw, condxw_yh))
+        condy_x0 = np.logical_or( np.logical_and(y_set0, condy0_x0), np.logical_and(y_seth, condyh_x0))
+        condy_xw = np.logical_or( np.logical_and(y_set0, condy0_xw), np.logical_and(y_seth, condyh_xw))
+
+        segm_pts[0, np.logical_and(condy_x0, segm_pts[0,:]<x0)] = x0
+        segm_pts[0, np.logical_and(condy_xw, segm_pts[0,:]>xe)] = xe
+        segm_pts[1, np.logical_and(condx_y0, segm_pts[1,:]<y0)] = y0
+        segm_pts[1, np.logical_and(condx_yh, segm_pts[1,:]>ye)] = ye
+
+        # Filter out the segm points out of boundary
+        segm_maskx = np.logical_and(segm_pts[0,:] >= x0, segm_pts[0,:] <= xe)
+        segm_masky = np.logical_and(segm_pts[1,:] >= y0, segm_pts[1,:] <= ye)
+        segm_pts = segm_pts[:, np.logical_and(segm_maskx, segm_masky)]
+
+        if segm_pts.shape[1] > 0:
+          return  np.array([segm_pts[0,:].min(), segm_pts[1,:].min(),
+                            segm_pts[0,:].max(), segm_pts[1,:].max()])
+      
+    return  np.array([])
+      
+
+
