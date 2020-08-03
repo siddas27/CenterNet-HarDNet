@@ -9,9 +9,9 @@ Object detection using center point detection:
 
 ## Highlights
 
-- **Simple Algorithm:** Object as a point is simple and elegant, it models an object as a single point -- the center point of its bounding box.
+- **Simple Algorithm:** Object as a point is a simple and elegant approach for object detections, it models an object as a single point -- the center point of its bounding box.
 
-- **Simple Network:** A U-shape HarDNet-85 + Sum-to-1 layer normalization comprise the whole network. There is NO dilationa nor deformable convlution being used.
+- **Simple Network:** A U-shape HarDNet-85 with Conv3x3, ReLU, bilinear interpolation upsampling, and Sum-to-1 layer normalization comprise the whole network. There is NO dilation/deformable convolution, nor any novel activation function being used.
 
 - **Efficient:** CenterNet-HarDNet85 model achieves *42.4* COCO mAP while running at *38* FPS on an Nvidia GTX-1080Ti GPU.
 
@@ -20,8 +20,8 @@ Object detection using center point detection:
 
 ### Object Detection on COCO validation
 
-| Backbone     | Parameters |  mAP(Val) / FPS(1080ti) | Flip mAP / FPS| Model |
-|--------------|------------|-------------------|--------------|-------|
+| Backbone     | Parameters |  mAP / FPS(1080ti) | Flip mAP / FPS| Model |
+| :----------: | :--------: | :----------------: | :-----------: | :---: |
 | HarDNet85    | 37.2M      | 42.4 / 38 |  43.5 / 20   | [Download](https://ping-chao.com/hardnet/centernet_hardnet85_coco.pth) |
 
 The model was trained with Pytorch1.5.0 on two V100-32GB GPU for six days. Please see [experiment](experiments/ctdet_coco_hardnet85_2x.sh) for detailed hyperperameters.
@@ -36,7 +36,7 @@ Please refer to [INSTALL.md](readme/INSTALL.md) for installation instructions.
 For object detection on images/ video, run:
 
 ~~~
-python demo.py ctdet --demo /path/to/image/or/folder/or/video --load_model centernet_hardnet85_coco.pth
+python demo.py ctdet --demo /path/to/image/or/folder/or/video --arch hardnet_85 --load_model centernet_hardnet85_coco.pth
 ~~~
 We provide example images in `CenterNet_ROOT/images/` (from [Detectron](https://github.com/facebookresearch/Detectron/tree/master/demo)). If set up correctly, the output should look like
 
@@ -45,7 +45,7 @@ We provide example images in `CenterNet_ROOT/images/` (from [Detectron](https://
 For webcam demo, run     
 
 ~~~
-python demo.py ctdet --demo webcam --load_model centernet_hardnet85_coco.pth
+python demo.py ctdet --demo webcam --arch hardnet_85 --load_model centernet_hardnet85_coco.pth
 ~~~
 
 ## Benchmark Evaluation and Training
