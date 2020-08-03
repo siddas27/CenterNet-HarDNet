@@ -13,7 +13,7 @@ Object detection using center point detection:
 
 - **Simple Network:** A U-shape HarDNet-85 with Conv3x3, ReLU, bilinear interpolation upsampling, and Sum-to-1 layer normalization comprise the whole network. There is NO dilation/deformable convolution, nor any novel activation function being used.
 
-- **Efficient:** CenterNet-HarDNet85 model achieves *42.4* COCO mAP while running at *38* FPS on an Nvidia GTX-1080Ti GPU.
+- **Efficient:** CenterNet-HarDNet85 model achieves *42.5* COCO mAP (test-dev) while running at *38* FPS on an Nvidia GTX-1080Ti GPU.
 
 
 ## Main results
@@ -26,7 +26,7 @@ Object detection using center point detection:
 
 The model was trained with Pytorch 1.5.0 on two V100-32GB GPU for six days. Please see [experiment](experiments/ctdet_coco_hardnet85_2x.sh) for detailed hyperperameters.
 
-HarDNet-85 results (no flipping) on COCO test-dev2017:
+HarDNet-85 results (no flipping) on COCO **test-dev2017**:
 ```
  Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.425
  Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.618
