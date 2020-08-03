@@ -164,7 +164,7 @@ class CTDetDataset(data.Dataset):
     # a significant boundary of objects
     #inp, ann_list, output_w, output_h, meta = self.mosaic_mix( index )
     
-    if True: # Augmnetation visualization
+    if False: # Augmnetation visualization
       img = inp.transpose(1, 2, 0)
       img = (img*self.std + self.mean)*255
       for an in ann_list:
