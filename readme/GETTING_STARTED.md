@@ -12,7 +12,7 @@ run
 python test.py ctdet --exp_id coco_h85 --arch hardnet_85 --keep_res --load_model centernet_hardnet85_coco.pth
 ~~~
 
-This will give an AP of `42.4` if setup correctly. `--keep_res` is for keep the original image resolution. Without `--keep_res` it will resize the images to `512 x 512`. You can add `--flip_test` and `--flip_test --test_scales 0.5,0.75,1,1.25,1.5` to the above commend, for flip test and multi_scale test, respectively. The expected APs are `39.2` and `41.7`, respectively.
+This will give an AP of `42.4` if setup correctly. `--keep_res` is for keep the original image resolution. Without `--keep_res` it will resize the images to `512 x 512`. You can add `--flip_test` and `--flip_test --test_scales 0.5,0.75,1,1.25,1.5` to the above commend, for flip test and multi_scale test, respectively. The expected APs are `43.5` and `45.4`, respectively.
 
 
 ## Training
