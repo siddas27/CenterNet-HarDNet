@@ -71,9 +71,16 @@ python demo.py ctdet --demo webcam --arch hardnet_85 --load_model centernet_hard
 | 416 x 320    |     32     |  [Download](https://ping-chao.com/hardnet/ctdet_hardnet85_trt_416x320.pth) |
 
 - Install Jetpack 4.3
-- Install [Torch2TRT](https://github.com/NVIDIA-AI-IOT/torch2trt) and run follows with or without above trt models
+- Run follows to install [Torch2TRT](https://github.com/NVIDIA-AI-IOT/torch2trt) with plugin and the demo with or without the above trt models
 ~~~
+# Install torch2trt:
+git clone https://github.com/NVIDIA-AI-IOT/torch2trt
+cd torch2trt
+sudo python setup.py install --plugins
+
+# Demo
 python demo_trt.py ctdet --demo webcam --arch hardnet_85 --load_trt ctdet_hardnet85_trt_416x320.pth --input_w 416 --input_h 320
+
 # or run any size by converting a new trt model:
 python demo_trt.py ctdet --demo webcam --arch hardnet_85 --load_model centernet_hardnet85_coco.pth --input_w 640 --input_h 480
 ~~~
