@@ -205,7 +205,7 @@ class HarDBlock_v2(nn.Module):
         for i in range(n_layers):
           accum_out_ch = sum( self.out_partition[i] )
           real_out_ch = self.out_partition[i][0]
-          conv_layers_.append( nn.Conv2d(cur_ch, accum_out_ch, kernel_size=3, stride=1, padding=1, bias=False) )
+          conv_layers_.append( nn.Conv2d(cur_ch, accum_out_ch, kernel_size=3, stride=1, padding=1, bias=True) )
           bnrelu_layers_.append( BRLayer(real_out_ch) )
           cur_ch = real_out_ch
           if (i % 2 == 0) or (i == n_layers - 1):
@@ -213,7 +213,7 @@ class HarDBlock_v2(nn.Module):
         self.conv_layers = nn.ModuleList(conv_layers_)
         self.bnrelu_layers = nn.ModuleList(bnrelu_layers_)
 
-    def transform(self, blk):
+    def transform(self, blk, trt=False):
         # Transform weight matrix from a pretrained HarDBlock v1
         in_ch = blk.layers[0][0].weight.shape[1]
         for i in range(len(self.conv_layers)):
@@ -229,6 +229,20 @@ class HarDBlock_v2(nn.Module):
             self.layer_bias.append(b_src)
             #if b_src is not None:
             #  self.layer_bias[i] = b_src.view(1,-1,1,1)
+            if b_src is not None:
+                if trt:
+                    self.conv_layers[i].bias[1:part[0]] = b_src[1:]
+                    self.conv_layers[i].bias[0] = b_src[0]
+                    self.conv_layers[i].bias[part[0]:] = 0
+                    self.layer_bias[i] = None
+                else:
+                    #for pytorch, add bias with standalone tensor is more efficient than within conv.bias
+                    #this is because the amount of non-zero bias is small, 
+                    #but if we use conv.bias, the number of bias will be much larger
+                    self.conv_layers[i].bias = None
+            else:
+                self.conv_layers[i].bias = None 
+
 
             in_ch = part[0]
             link_ch.reverse()
@@ -375,9 +389,10 @@ class TransitionUp(nn.Module):
 
 class HarDNetSeg(nn.Module):
     def __init__(self, num_layers, heads, pretrained, down_ratio, final_kernel,
-                 last_level, head_conv, out_channel=0):
+                 last_level, head_conv, out_channel=0, trt=False):
         super(HarDNetSeg, self).__init__()
         assert down_ratio in [2, 4, 8, 16]
+        self.trt = trt
         self.first_level = int(np.log2(down_ratio))-1
         self.last_level = last_level
         
@@ -477,14 +492,14 @@ class HarDNetSeg(nn.Module):
             if isinstance(self.base[i], HarDBlock):
                 blk = self.base[i]
                 self.base[i] = HarDBlock_v2(blk.in_channels, blk.growth_rate, blk.grmul, blk.n_layers)
-                self.base[i].transform(blk)
+                self.base[i].transform(blk, self.trt)
         blk = self.last_blk
         self.last_blk = HarDBlock_v2(blk.in_channels, blk.growth_rate, blk.grmul, blk.n_layers)
-        self.last_blk.transform(blk)
+        self.last_blk.transform(blk, self.trt)
         for i in range(3):
             blk = self.denseBlocksUp[i]
             self.denseBlocksUp[i] = HarDBlock_v2(blk.in_channels, blk.growth_rate, blk.grmul, blk.n_layers)
-            self.denseBlocksUp[i].transform(blk)
+            self.denseBlocksUp[i].transform(blk, self.trt)
         self.cuda()
 
     def forward(self, x):
@@ -508,8 +523,9 @@ class HarDNetSeg(nn.Module):
             x = self.transUpBlocks[i](x, skip_x, (i<self.skip_lv))
             x = self.conv1x1_up[i](x)
             if self.SC[i] > 0:
-              x_sc.append( x[:,-self.SC[i]:,:,:].contiguous() )
-              x = x[:,:-self.SC[i],:,:].contiguous()
+              end = x.shape[1]
+              x_sc.append( x[:,end-self.SC[i]:,:,:].contiguous() )
+              x = x[:,:end-self.SC[i],:,:].contiguous()
             x2 = self.avg9x9(x)
             x3 = x/(x.sum((2,3),keepdim=True) + 0.1)
             x = torch.cat([x,x2,x3],1)
@@ -525,10 +541,12 @@ class HarDNetSeg(nn.Module):
         z = {}
         for head in self.heads:
             z[head] = self.__getattr__(head)(x)
+        if self.trt:
+          return [z[h] for h in z]
         return [z]
     
 
-def get_pose_net(num_layers, heads, head_conv=256, down_ratio=4):
+def get_pose_net(num_layers, heads, head_conv=256, down_ratio=4, trt=False):
   model = HarDNetSeg(
                  num_layers,
                  heads,
@@ -536,7 +554,8 @@ def get_pose_net(num_layers, heads, head_conv=256, down_ratio=4):
                  down_ratio=down_ratio,
                  final_kernel=1,
                  last_level=4,
-                 head_conv=head_conv)
+                 head_conv=head_conv,
+                 trt = trt)
   total_params = sum(p.numel() for p in model.parameters())
   print( "Parameters=", total_params )  
   return model
