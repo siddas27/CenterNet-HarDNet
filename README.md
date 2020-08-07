@@ -63,6 +63,21 @@ For webcam demo, run
 python demo.py ctdet --demo webcam --arch hardnet_85 --load_model centernet_hardnet85_coco.pth
 ~~~
 
+## Real-time Demo on NVidia Xavier
+
+| input Size   |     FPS    |   TRT Model   |
+| :----------: |  :------:  | :-----------: |
+| 512 x 512    |     21     |  [Download](https://ping-chao.com/hardnet/ctdet_hardnet85_trt_512x512.pth) |
+| 416 x 320    |     32     |  [Download](https://ping-chao.com/hardnet/ctdet_hardnet85_trt_416x320.pth) |
+
+- Install Jetpack 4.3
+- Install [Torch2TRT](https://github.com/NVIDIA-AI-IOT/torch2trt) and run follows with or without above trt models
+~~~
+python demo_trt.py ctdet --demo webcam --arch hardnet_85 --load_trt ctdet_hardnet85_trt_416x320.pth --input_w 416 --input_h 320
+# or run any size by converting a new trt model:
+python demo_trt.py ctdet --demo webcam --arch hardnet_85 --load_model centernet_hardnet85_coco.pth --input_w 640 --input_h 480
+~~~
+
 ## Benchmark Evaluation and Training
 
 After [installation](readme/INSTALL.md), follow the instructions in [DATA.md](readme/DATA.md) to setup the datasets. Then check [GETTING_STARTED.md](readme/GETTING_STARTED.md) to reproduce the results in the paper.
