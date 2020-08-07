@@ -18,10 +18,11 @@ After install Anaconda:
     python setup.py install --user
     ~~~
 
-3. Install the requirements
+3. Install the requirements and clone this repo
 
     ~~~
     pip install -r requirements.txt
+    git clone --recursive https://github.com/PingoLH/CenterNet-HarDNet.git
     ~~~   
     
 4. [Optional, only required if you are using extremenet or multi-scale testing] Compile NMS if your want to use multi-scale testing or test ExtremeNet.
