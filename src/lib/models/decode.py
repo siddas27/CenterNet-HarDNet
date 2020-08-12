@@ -100,7 +100,7 @@ def _topk_channel(scores, K=40):
 
       return topk_scores, topk_inds, topk_ys, topk_xs
 
-def _topk(scores, K=40):
+def _topk(scores, K=40, trt=False):
     batch, cat, height, width = scores.size()
       
     topk_scores, topk_inds = torch.topk(scores.view(batch, cat, -1), K)
@@ -112,9 +112,9 @@ def _topk(scores, K=40):
     topk_score, topk_ind = torch.topk(topk_scores.view(batch, -1), K)
     topk_clses = (topk_ind / K).int()
     topk_inds = _gather_feat(
-        topk_inds.view(batch, -1, 1), topk_ind).view(batch, K)
-    topk_ys = _gather_feat(topk_ys.view(batch, -1, 1), topk_ind).view(batch, K)
-    topk_xs = _gather_feat(topk_xs.view(batch, -1, 1), topk_ind).view(batch, K)
+        topk_inds.view(batch, -1, 1), topk_ind, trt=trt).view(batch, K)
+    topk_ys = _gather_feat(topk_ys.view(batch, -1, 1), topk_ind, trt=trt).view(batch, K)
+    topk_xs = _gather_feat(topk_xs.view(batch, -1, 1), topk_ind, trt=trt).view(batch, K)
 
     return topk_score, topk_inds, topk_clses, topk_ys, topk_xs
 
@@ -461,23 +461,23 @@ def ddd_decode(heat, rot, depth, dim, wh=None, reg=None, K=40):
       
     return detections
 
-def ctdet_decode(heat, wh, reg=None, cat_spec_wh=False, K=100):
+def ctdet_decode(heat, wh, reg=None, cat_spec_wh=False, K=100, trt=False):
     batch, cat, height, width = heat.size()
 
     # heat = torch.sigmoid(heat)
     # perform nms on heatmaps
     heat = _nms(heat)
       
-    scores, inds, clses, ys, xs = _topk(heat, K=K)
+    scores, inds, clses, ys, xs = _topk(heat, K=K, trt=trt)
     if reg is not None:
-      reg = _transpose_and_gather_feat(reg, inds)
+      reg = _transpose_and_gather_feat(reg, inds, trt=trt)
       reg = reg.view(batch, K, 2)
       xs = xs.view(batch, K, 1) + reg[:, :, 0:1]
       ys = ys.view(batch, K, 1) + reg[:, :, 1:2]
     else:
       xs = xs.view(batch, K, 1) + 0.5
       ys = ys.view(batch, K, 1) + 0.5
-    wh = _transpose_and_gather_feat(wh, inds)
+    wh = _transpose_and_gather_feat(wh, inds, trt=trt)
     if cat_spec_wh:
       wh = wh.view(batch, K, cat, 2)
       clses_ind = clses.view(batch, K, 1, 1).expand(batch, K, 1, 2).long()
