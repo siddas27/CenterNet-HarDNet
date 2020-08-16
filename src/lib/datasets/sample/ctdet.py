@@ -48,13 +48,13 @@ class CTDetDataset(data.Dataset):
     
     if self.split == 'train':
       if scale_lv == 2:
-        s = np.random.choice([ 256, 320, 384, 448, 512, 576, 640, 704, 768, 832])
+        s = np.random.choice([ 192, 256, 320, 384, 448, 512, 576, 640, 704, 768, 832, 896])
       elif scale_lv == 1:
         s = np.random.choice([ 512, 576, 640, 704, 768, 832])
       else:
         s = np.random.choice([ 192, 256, 320, 384, 448, 512])
       
-      distortion = 0.5
+      distortion = 0.6
       sd = np.random.random()*distortion*2 - distortion + 1
       if img.shape[0] > img.shape[1]:
         s = [s, s*(img.shape[0] / img.shape[1])*sd]
