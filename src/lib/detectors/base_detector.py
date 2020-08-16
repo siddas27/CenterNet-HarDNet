@@ -41,7 +41,7 @@ class BaseDetector(object):
     if self.opt.fix_res:
       inp_height, inp_width = self.opt.input_h, self.opt.input_w
       c = np.array([new_width / 2., new_height / 2.], dtype=np.float32)
-      s = max(height, width) * 1.0
+      s = np.array([new_width, new_height], dtype=np.float32)
     else:
       inp_height = (new_height | self.opt.pad) + 1
       inp_width = (new_width | self.opt.pad) + 1
