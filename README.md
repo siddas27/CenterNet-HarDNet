@@ -25,7 +25,7 @@ Object detection using center point detection:
 | HarDNet85    | 37.2M      |  87.9  |  512x512   | 43.5 / 45 |  44.4 / 24   | [Download](https://ping-chao.com/hardnet/centernet_hardnet85_coco.pth) |
 | HarDNet85    | 37.2M      |  58.0  |  416x416   | 41.5 / 53 |  42.5 / 31   | as above |
 
-The model was trained with Pytorch 1.5.0 on two V100-32GB GPU for six days. Please see [experiment](experiments/ctdet_coco_hardnet85_2x.sh) for detailed hyperperameters.
+The model was trained with Pytorch 1.5.0 on two V100-32GB GPU for **250 epochs** (seven days). Please see [experiment](experiments/ctdet_coco_hardnet85_2x.sh) for detailed hyperperameters. Using more GPUs may require sync-batchNorm to maintain the accuracy, and the learning rate may also need to adjust. You can also check if your training/val loss is roughly aligned with our [log](experiments/ctdet_coco_hardnet85_2x.log)
 
 HarDNet-85 results (no flipping) on COCO **test-dev2017**:
 ```
@@ -72,7 +72,7 @@ python demo.py ctdet --demo webcam --arch hardnet_85 --load_model centernet_hard
 | 416 x 320    |     32     | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_416x320.trt) |
 
 - Install NVIDIA JetPack 4.4
-- Pytorch > 1.3 for onnx opset 11 and TensorRT > 7.1
+- Install Pytorch > 1.3 for onnx opset 11 and TensorRT 7.1
 - Run following commands with or without the above trt models. It will convert the pytorch model into onnx and TRT model when loading model with --load_model.
 ~~~
 
@@ -82,7 +82,7 @@ python demo_trt.py ctdet --demo webcam --arch hardnet_85 --load_trt ctdet_hardne
 # or run with any size (divided by 32) by converting a new trt model:
 python demo_trt.py ctdet --demo webcam --arch hardnet_85 --load_model centernet_hardnet85_coco.pth --input_w 480 --input_h 480
 
-# You can also run test on COCO val set with trt model:
+# You can also run test on COCO val set with trt model, which will get ~43.2 mAP for FP16 mode:
 python test_trt.py ctdet --arch hardnet_85 --load_trt ctdet_hardnet_85_512x512.trt
 ~~~
 
