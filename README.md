@@ -73,7 +73,7 @@ python demo.py ctdet --demo webcam --arch hardnet_85 --load_model centernet_hard
 
 - Install NVIDIA JetPack 4.4
 - Pytorch > 1.3 for onnx opset 11 and TensorRT > 7.1
-- Run following commands with or without the above trt models
+- Run following commands with or without the above trt models. It will convert the pytorch model into onnx and TRT model when loading model with --load_model.
 ~~~
 
 # Demo
