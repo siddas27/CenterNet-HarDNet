@@ -17,10 +17,8 @@ def flip(img):
   return img[:, :, ::-1].copy()  
 
 def transform_preds(coords, center, scale, output_size):
-    target_coords = np.zeros(coords.shape)
     trans = get_affine_transform(center, scale, 0, output_size, inv=1)
-    for p in range(coords.shape[0]):
-        target_coords[p, 0:2] = affine_transform(coords[p, 0:2], trans)
+    target_coords = affine_transform(coords.T, trans).T
     return target_coords
 
 
