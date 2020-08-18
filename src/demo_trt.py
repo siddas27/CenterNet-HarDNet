@@ -24,8 +24,8 @@ from pytorch_bn_fusion.bn_fusion import fuse_bn_recursively
 from models.networks.hardnet import get_pose_net as get_hardnet
 from models.model import load_model
 from models.decode import ctdet_decode
-from utils.post_process import ctdet_post_process
 from utils.debugger import Debugger
+from utils.image import transform_preds
 
 image_ext = ['jpg', 'jpeg', 'png', 'webp']
 video_ext = ['mp4', 'mov', 'avi', 'mkv']
@@ -190,20 +190,21 @@ class CenterHarDNet(nn.Module):
 def show_det(dets, image, det_size, debugger, opt, pause=False, name=None):
   dets = dets.reshape(1, -1, dets.shape[2])
   h,w = image.shape[0:2]
+  debugger.add_img(image, img_id='ctdet')
+  
   c = np.array([w / 2, h / 2], dtype=np.float32)
   s = np.array([w, h], dtype=np.float32)
-  dets = ctdet_post_process(
-        dets.copy(), [c], [s],
-        det_size[1], det_size[0], opt.num_classes)
-  for j in range(1, opt.num_classes + 1):
-      dets[0][j] = np.array(dets[0][j], dtype=np.float32).reshape(-1, 5)
-  dets = dets[0]  
-
-  debugger.add_img(image, img_id='ctdet')
-  for j in range(1, opt.num_classes + 1):
-    for bbox in dets[j]:
+  dets[0, :,  :2] = transform_preds( dets[0, :, 0:2], c, s, det_size)
+  dets[0, :, 2:4] = transform_preds( dets[0, :, 2:4], c, s, det_size)
+  classes = dets[0, :, -1]
+  
+  for j in range(opt.num_classes):
+    inds = (classes == j)
+    top_preds = dets[0, inds, :5].astype(np.float32)
+    for bbox in top_preds:
       if bbox[4] > opt.vis_thresh:
-        debugger.add_coco_bbox(bbox[:4], j - 1, bbox[4], img_id='ctdet')
+        debugger.add_coco_bbox(bbox[:4], j , bbox[4], img_id='ctdet')
+        
   if name:
     print('detecting:', name)
     debugger.save_all_imgs( path='./', prefix=name)
