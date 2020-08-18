@@ -13,7 +13,7 @@ Object detection using center point detection:
 
 - **Simple Network:** A U-shape HarDNet-85 with Conv3x3, ReLU, bilinear interpolation upsampling, and Sum-to-1 layer normalization comprise the whole network. There is NO dilation/deformable convolution, nor any novel activation function being used.
 
-- **Efficient:** CenterNet-HarDNet85 model achieves *43.6* COCO mAP (test-dev) while running at *45* FPS on an Nvidia GTX-1080Ti GPU.
+- **Efficient:** CenterNet-HarDNet85 model achieves *43.6* COCO mAP (test-dev) while running at *45* FPS on an NVIDIA GTX-1080Ti GPU.
 
 
 ## Main results
@@ -64,7 +64,7 @@ For webcam demo, run
 python demo.py ctdet --demo webcam --arch hardnet_85 --load_model centernet_hardnet85_coco.pth
 ~~~
 
-## Real-time Demo on NVidia Xavier
+## Real-time Demo on NVIDIA AGX Xavier
 
 | input Size   |     FPS    |   TRT Model   |
 | :----------: |  :------:  | :-----------: |
