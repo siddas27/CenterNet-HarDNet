@@ -13,17 +13,19 @@ Object detection using center point detection:
 
 - **Simple Network:** A U-shape HarDNet-85 with Conv3x3, ReLU, bilinear interpolation upsampling, and Sum-to-1 layer normalization comprise the whole network. There is NO dilation/deformable convolution, nor any novel activation function being used.
 
-- **Efficient:** CenterNet-HarDNet85 model achieves *43.6* COCO mAP (test-dev) while running at *45* FPS on an NVIDIA GTX-1080Ti GPU.
+- **Efficient:** CenterNet-HarDNet85 model achieves **43.6** COCO mAP (test-dev) while running at **45** FPS on an NVIDIA GTX-1080Ti GPU.
+
+- **State of The Art:** CenterNet-HarDNet85's is faster than YOLOv4, SpineNet-49, and EfficientDet-D2
 
 
 ## Main results
 
 ### Object Detection on COCO validation
 
-| Backbone     | Parameters | GFLOPs | Input Size |  mAP / FPS(1080ti) | Flip mAP / FPS| Model |
-| :----------: | :--------: | :----: | :--------: | :----------------: | :-----------: | :---: |
-| HarDNet85    | 37.2M      |  87.9  |  512x512   | 43.5 / 45 |  44.4 / 24   | [Download](https://ping-chao.com/hardnet/centernet_hardnet85_coco.pth) |
-| HarDNet85    | 37.2M      |  58.0  |  416x416   | 41.5 / 53 |  42.5 / 31   | as above |
+| Backbone     | #Param | GFLOPs | Input Size |  mAP(val) <br> / FPS(1080ti) | Flip mAP <br>/ FPS| Model |
+| :----------: | :----: | :----: | :--------: | :----------------: | :-----------: | :---: |
+| HarDNet85    | 37.2M  |  87.9  |  512x512   | 43.5 / 45 |  44.4 / 24   | [Download](https://ping-chao.com/hardnet/centernet_hardnet85_coco.pth) |
+| HarDNet85    | 37.2M  |  58.0  |  416x416   | 41.5 / 53 |  42.5 / 31   | as above |
 
 The model was trained with Pytorch 1.5.0 on two V100-32GB GPU for **250 epochs** (seven days). Please see [experiment](experiments/ctdet_coco_hardnet85_2x.sh) for detailed hyperperameters. Using more GPUs may require sync-batchNorm to maintain the accuracy, and the learning rate may also need to adjust. You can also check if your training/val loss is roughly aligned with our [log](experiments/ctdet_coco_hardnet85_2x.log)
 
@@ -42,6 +44,14 @@ HarDNet-85 results (no flipping) on COCO **test-dev2017**:
  Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.651
  Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.799
 ```
+### Comparison with other state-of-the-art works
+
+|     Method   |  mAP(test-dev)  | FPS @ GPU |  Training epochs |
+| :----------: | :-------------: | :-------: | :--------------: |
+| CenterNet-HarDNet85 |  43.6    |  45 @ 1080Ti | 250 |
+|  [YOLOv4](https://github.com/pjreddie/darknet)   |  43.5    |  33 @ P100 | 300 |
+|  [SpineNet-49](https://github.com/tensorflow/tpu/blob/master/models/official/detection/MODEL_ZOO.md)  |  42.8    |  42 @ V100 | 350 |
+| [EfficientDet-D2](https://github.com/zylo117/Yet-Another-EfficientDet-Pytorch) |  43.0 | 26.5 @ 2080Ti | 500 |
 
 ## Installation
 
@@ -64,26 +74,31 @@ For webcam demo, run
 python demo.py ctdet --demo webcam --arch hardnet_85 --load_model centernet_hardnet85_coco.pth
 ~~~
 
-## Real-time Demo on NVIDIA AGX Xavier
+## Real-time Demo on NVIDIA Jetson nano and AGX Xavier
 
-| input Size   |     FPS    |   TRT Model   |
-| :----------: |  :------:  | :-----------: |
-| 512 x 512    |     21     | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_512x512.trt) |
-| 416 x 320    |     32     | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_416x320.trt) |
+| Train Size |  Input Size  |  COCO <br>AP(val) |  AP-s  |  AP-m  |  AP-L  | FP16 TRT model:<br> nano (Latency) | FP16 TRT model:<br> Xavier (Latency)|
+| :------:   | :----------: |  :-------------:  | :----: | :----: | :----: | :----: | :----: |
+| 512x512    |   512x512    |    43.5   |  24.5  | 47.6   |  59.4  | - | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_512x512_xavier.trt) (49 ms) | 
+| 512x512    |   416x416    |    41.5   |  20.2  | 45.1   |  59.7  | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_416x416_nano.trt) (342 ms) | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_416x416_xavier.trt) (37 ms) |
+| 512x512    |   416x320    |    39.5   |  17.9  | 42.7   |  59.4  | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_416x320_nano.trt) (261 ms) | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_416x320_xavier.trt) (31 ms) |
+| 512x512    |   320x320    |    37.3   |  15.1  | 40.4   |  58.4  | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_320x320_nano.trt) (210 ms) | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_320x320_xavier.trt) (25 ms) |
+| 512x512    |   256x256    |    33.0   |  11.3  | 34.4   |  56.8  | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_256x256_nano.trt) (117 ms) | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_256x256_xavier.trt) (17 ms) |
+| 512x512    |   224x224    |    30.1   |   8.9  | 30.4   |  54.0  | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_224x224_nano.trt) (105 ms) | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_224x224_xavier.trt) (16 ms) |
 
-- Install NVIDIA JetPack 4.4
-- Install Pytorch > 1.3 for onnx opset 11 and TensorRT 7.1
+- Install NVIDIA JetPack 4.4 (TensorRT 7.1)
+- Install Pytorch > 1.3 for onnx opset 11 and pycuda
 - Run following commands with or without the above trt models. It will convert the pytorch model into onnx and TRT model when loading model with --load_model.
+- For Jetson nano, please increase swap size to avoid freeze when building your own engines on the target (See [instructions](https://forums.developer.nvidia.com/t/creating-a-swap-file/65385))
 ~~~
 
 # Demo
-python demo_trt.py ctdet --demo webcam --arch hardnet_85 --load_trt ctdet_hardnet_85_416x320.trt --input_w 416 --input_h 320
+python demo_trt.py ctdet --demo webcam --arch hardnet_85 --load_trt ctdet_hardnet_85_416x320_xavier.trt --input_w 416 --input_h 320
 
 # or run with any size (divided by 32) by converting a new trt model:
 python demo_trt.py ctdet --demo webcam --arch hardnet_85 --load_model centernet_hardnet85_coco.pth --input_w 480 --input_h 480
 
 # You can also run test on COCO val set with trt model, which will get ~43.2 mAP for FP16 mode:
-python test_trt.py ctdet --arch hardnet_85 --load_trt ctdet_hardnet_85_512x512.trt
+python test_trt.py ctdet --arch hardnet_85 --load_trt ctdet_hardnet_85_512x512_xavier.trt
 ~~~
 
 ## Benchmark Evaluation and Training
