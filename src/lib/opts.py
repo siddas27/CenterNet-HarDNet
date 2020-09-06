@@ -81,13 +81,13 @@ class opts(object):
                              help='input width. -1 for default from dataset.')
     
     # train
-    self.parser.add_argument('--lr', type=float, default=1.25e-4, 
-                             help='learning rate for batch size 32.')
-    self.parser.add_argument('--lr_step', type=str, default='90,120',
+    self.parser.add_argument('--lr', type=float, default=1e-2, 
+                             help='learning rate for batch size 48.')
+    self.parser.add_argument('--lr_step', type=str, default='230,280',
                              help='drop learning rate by 10.')
-    self.parser.add_argument('--num_epochs', type=int, default=140,
+    self.parser.add_argument('--num_epochs', type=int, default=300,
                              help='total training epochs.')
-    self.parser.add_argument('--batch_size', type=int, default=32,
+    self.parser.add_argument('--batch_size', type=int, default=48,
                              help='batch size')
     self.parser.add_argument('--master_batch_size', type=int, default=-1,
                              help='batch size on the master gpu.')
@@ -98,6 +98,8 @@ class opts(object):
     self.parser.add_argument('--trainval', action='store_true',
                              help='include validation in training and '
                                   'test on test set')
+    self.parser.add_argument('--wlr', type=float, default=5e-5,
+                             help='Warm-up learning rate for the first epoch')
 
     # test
     self.parser.add_argument('--flip_test', action='store_true',
@@ -128,8 +130,7 @@ class opts(object):
                              help='when not using random crop'
                                   'apply scale augmentation.')
     self.parser.add_argument('--rotate', type=float, default=0,
-                             help='when not using random crop'
-                                  'apply rotation augmentation.')
+                             help='apply rotation augmentation in degree (instead of radian).')
     self.parser.add_argument('--flip', type = float, default=0.5,
                              help='probability of applying flip augmentation.')
     self.parser.add_argument('--no_color_aug', action='store_true',

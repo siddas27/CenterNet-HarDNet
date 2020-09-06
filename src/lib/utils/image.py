@@ -287,63 +287,67 @@ def blend_truth_mosaic(out_img, img, anns, w, h, cut_x, cut_y, i_mixup):
     return anns
 
 
-def bbox_correction(segm, trans_input, flipped, width, crop):
+def get_border_coord(trans_inv, width, height, crop):
+    '''
+    Inverse project the border line of training window (512x512) back to
+    the original input image space, then return the coordinates of 
+    the iversed-projected border line
+    '''
+    x0, y0, xe, ye = crop
+    bxs = np.concatenate([np.arange(x0,xe), np.arange(x0,xe), np.repeat(x0, ye-y0), np.repeat(xe-1, ye-y0)])
+    bys = np.concatenate([np.repeat(y0, xe-x0), np.repeat(ye-1, xe-x0), np.arange(y0,ye), np.arange(y0,ye)])
+    border = affine_transform(np.array([bxs, bys]), trans_inv)
+
+    x_in = np.logical_and(border[0,:]>=0, border[0,:]<width)
+    y_in = np.logical_and(border[1,:]>=0, border[1,:]<height)
+    border = border[:, np.logical_and(x_in, y_in)]
+    border_idx  = border[0,:].astype(np.int32) + \
+                  border[1,:].astype(np.int32) * (width+1)
+
+    return border, border_idx.astype(np.int32)
+    
+
+def mask2box(mask, trans, border, border_idx, flipped, width, height, crop):
+    '''
+    Extract the edge of an object from the segmentation mask, then project it
+    to the training window (512x512), apply cropping such that only the visible
+    part of the edge are going to be preserved. Then, combine with the overlap
+    between object and training window border to create a bbox that perfectly
+    fits the visible part of the target object
+    '''
     x0, y0, xe, ye = crop
 
-    if isinstance(segm, list):
-        xs = np.concatenate([segm[i][0::2] for i in range(len(segm))])
-        ys = np.concatenate([segm[i][1::2] for i in range(len(segm))])
-        if flipped:
-          xs = width - xs
-        segm_pts = affine_transform(np.array([xs, ys]), trans_input)
-        rs = np.concatenate([segm_pts[:,1:], segm_pts[:,0:1]], axis=1)
-        ls = np.concatenate([segm_pts[:,-1:], segm_pts[:,:-1]], axis=1)
-        
-        # If an edge between two neighboring points cross the crop boundary
-        # reset the outside point to boundary (x/y separately)
-        x_set0 = np.logical_and(segm_pts[0,:]<x0, np.logical_or(rs[0,:]>=x0, ls[0,:]>=x0))
-        y_set0 = np.logical_and(segm_pts[1,:]<y0, np.logical_or(rs[1,:]>=y0, ls[1,:]>=y0))
-        x_setw = np.logical_and(segm_pts[0,:]>xe, np.logical_or(rs[0,:]<=xe, ls[0,:]<=xe))
-        y_seth = np.logical_and(segm_pts[1,:]>ye, np.logical_or(rs[1,:]<=ye, ls[1,:]<=ye))
+    if flipped:
+      mask = np.flip(mask, 1)
 
-        segm_pts[0, x_set0] = x0
-        segm_pts[1, y_set0] = y0
-        segm_pts[0, x_setw] = xe
-        segm_pts[1, y_seth] = ye
+    # add a column of zero to avoid zero edge for full-image large objects
+    z = np.repeat([[0]], mask.shape[0], axis=0)
+    mask = np.concatenate([ mask, z], 1)
+    mask = mask.flatten()
+    # Extract edges of the object
+    pixels = np.concatenate([[0], mask, [0]])
+    pts = np.where(pixels[1:] != pixels[:-1])[0]
+    xs = pts %  (width+1)
+    ys = pts // (width+1)
 
-        # For those points have x or y being reset, reset their another dimension if:
-        # 1. the other dimension is also out of boundary
-        # 2. at least one of the points that has been reset by the same dimension
-        #    has the another dimension on the other side of the boundary
-        condx0_y0 = np.logical_and(x_set0, segm_pts[1,:]>y0).sum() > 0
-        condx0_yh = np.logical_and(x_set0, segm_pts[1,:]<ye).sum() > 0
-        condy0_x0 = np.logical_and(y_set0, segm_pts[0,:]>x0).sum() > 0
-        condy0_xw = np.logical_and(y_set0, segm_pts[0,:]<xe).sum() > 0
-        condxw_y0 = np.logical_and(x_setw, segm_pts[1,:]>y0).sum() > 0
-        condxw_yh = np.logical_and(x_setw, segm_pts[1,:]<ye).sum() > 0
-        condyh_x0 = np.logical_and(y_seth, segm_pts[0,:]>x0).sum() > 0
-        condyh_xw = np.logical_and(y_seth, segm_pts[0,:]<xe).sum() > 0
+    # Extract the overlap between the object segment and the border line of
+    # the training window that was inverse projected back to the original image space
+    border_mask = mask[ border_idx ]
+    border_pts  = border[ :, np.where(border_mask == 1)[0] ]
 
-        condx_y0 = np.logical_or( np.logical_and(x_set0, condx0_y0), np.logical_and(x_setw, condxw_y0))
-        condx_yh = np.logical_or( np.logical_and(x_set0, condx0_yh), np.logical_and(x_setw, condxw_yh))
-        condy_x0 = np.logical_or( np.logical_and(y_set0, condy0_x0), np.logical_and(y_seth, condyh_x0))
-        condy_xw = np.logical_or( np.logical_and(y_set0, condy0_xw), np.logical_and(y_seth, condyh_xw))
+    # Project to training window
+    segm_pts   = affine_transform(np.array([xs, ys]),  trans)
+    border_pts = affine_transform(border_pts,          trans)
+    
+    x_in = np.logical_and(segm_pts[0,:]>=x0-1, segm_pts[0,:]<xe+1)
+    y_in = np.logical_and(segm_pts[1,:]>=y0-1, segm_pts[1,:]<ye+1)
+    segm_pts = segm_pts[:, np.logical_and(x_in, y_in)]
+    segm_pts = np.concatenate([segm_pts, border_pts],axis=1)
 
-        segm_pts[0, np.logical_and(condy_x0, segm_pts[0,:]<x0)] = x0
-        segm_pts[0, np.logical_and(condy_xw, segm_pts[0,:]>xe)] = xe
-        segm_pts[1, np.logical_and(condx_y0, segm_pts[1,:]<y0)] = y0
-        segm_pts[1, np.logical_and(condx_yh, segm_pts[1,:]>ye)] = ye
+    if segm_pts.shape[1] > 0:
+      return  np.array([segm_pts[0,:].min(), segm_pts[1,:].min(),
+                        segm_pts[0,:].max(), segm_pts[1,:].max()], dtype=np.float32)
+    else:
+      return  np.array([0,0,0,0], dtype=np.float32)
 
-        # Filter out the segm points out of boundary
-        segm_maskx = np.logical_and(segm_pts[0,:] >= x0, segm_pts[0,:] <= xe)
-        segm_masky = np.logical_and(segm_pts[1,:] >= y0, segm_pts[1,:] <= ye)
-        segm_pts = segm_pts[:, np.logical_and(segm_maskx, segm_masky)]
-
-        if segm_pts.shape[1] > 0:
-          return  np.array([segm_pts[0,:].min(), segm_pts[1,:].min(),
-                            segm_pts[0,:].max(), segm_pts[1,:].max()])
-      
-    return  np.array([])
-      
-
-
+    

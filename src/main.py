@@ -72,8 +72,8 @@ def main(opt):
   print('Starting training...')
   best = 1e10
   for epoch in range(start_epoch + 1, opt.num_epochs + 1):
-    if epoch <= 2:
-      cur_lr = opt.lr if epoch == 2 else 5e-5
+    if epoch <= 2 and opt.wlr > 0:
+      cur_lr = opt.lr if epoch == 2 else opt.wlr
       for param_group in optimizer.param_groups:
         param_group['lr'] = cur_lr
     mark = epoch if opt.save_all else 'last'

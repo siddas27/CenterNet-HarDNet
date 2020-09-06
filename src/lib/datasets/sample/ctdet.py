@@ -14,7 +14,7 @@ from utils.image import flip, color_aug
 from utils.image import get_affine_transform, affine_transform
 from utils.image import gaussian_radius, draw_umich_gaussian, draw_msra_gaussian
 from utils.image import draw_dense_reg
-from utils.image import blend_truth_mosaic, bbox_correction
+from utils.image import blend_truth_mosaic, get_border_coord, mask2box
 import math
 
 class CTDetDataset(data.Dataset):
@@ -43,6 +43,7 @@ class CTDetDataset(data.Dataset):
     
     crop = [0, 0, input_w, input_h] if crop is None else crop
     flipped = False
+    rot_en = self.opt.rotate > 0
     rot = crpsh_x = crpsh_y =0
     img_s = [img.shape[1], img.shape[0]]
     
@@ -67,6 +68,11 @@ class CTDetDataset(data.Dataset):
       if flip_en and np.random.random() < self.opt.flip:
         flipped = True
         img = img[:, ::-1, :]
+      if rot_en:
+        rot = np.random.random()*self.opt.rotate*2 - self.opt.rotate
+
+    elif not self.opt.keep_res:
+      s = np.array([input_w, input_h], dtype=np.float32)
 
     out_center = [input_w/2, input_h/2] if out_shift is None else out_shift
     out_center[0] += (np.random.random()*2-1) * crpsh_x
@@ -74,6 +80,8 @@ class CTDetDataset(data.Dataset):
     
     trans_input = get_affine_transform(
       c, img_s, rot, s, out_center)
+    trans_inv = get_affine_transform(
+      c, img_s, rot, s, out_center, inv=1)
       
     inp = cv2.warpAffine(img, trans_input,
                          (input_w, input_h),
@@ -88,6 +96,8 @@ class CTDetDataset(data.Dataset):
     num_objs = min(len(anns), self.max_objs)
     ann_list = []
     
+    border_xy, border_idx = get_border_coord(trans_inv, width, height, crop)
+    
     for k in range(num_objs):
       ann = anns[k]
       bbox = self._coco_box_to_bbox(ann['bbox'])
@@ -97,10 +107,15 @@ class CTDetDataset(data.Dataset):
       bbox[:2] = affine_transform(bbox[:2], trans_input)
       bbox[2:] = affine_transform(bbox[2:], trans_input)
       segm  = ann['segmentation']
-      
-      # Correct the bbox that was cropped by image boundary
-      bbox_segm = bbox_correction(segm, trans_input, flipped, width, crop)
-      ann_list.append([bbox, cls_id, bbox_segm])
+
+      # Create bbox from the visible part of objects through segmenation mask
+      m = self.coco.annToMask(ann)
+      bbox2 = mask2box(m, trans_input, border_xy, border_idx, 
+                       flipped, width, height, crop)
+
+      if rot_en:
+        bbox = bbox2.astype(np.float32)
+      ann_list.append([bbox, cls_id, bbox2])
       
       #end of objs loop
     meta = (c, s)
@@ -173,6 +188,8 @@ class CTDetDataset(data.Dataset):
         bbox2 = bbox2.astype(np.int32)
         bbox[[0, 2]] = np.clip(bbox[[0, 2]], 0, img.shape[1])
         bbox[[1, 3]] = np.clip(bbox[[1, 3]], 0, img.shape[0])
+        bbox2[[0, 2]] = np.clip(bbox2[[0, 2]], 0, img.shape[1])
+        bbox2[[1, 3]] = np.clip(bbox2[[1, 3]], 0, img.shape[0])
         if bbox[2] - bbox[0] > 0 and bbox[3] - bbox[1] > 0:
           cv2.rectangle(img, (bbox[0],bbox[1]), (bbox[2],bbox[3]), (255,0,0), 3)
         if bbox2.shape[0] > 0:
@@ -212,6 +229,8 @@ class CTDetDataset(data.Dataset):
       
       if (h/(oh+0.01) < 0.9 or  w/(ow+0.01) < 0.9) and bbox2.shape[0] > 0:
         bbox = bbox2
+        bbox[[0, 2]] = np.clip(bbox[[0, 2]], 0, output_w)
+        bbox[[1, 3]] = np.clip(bbox[[1, 3]], 0, output_h)
         h, w = bbox[3] - bbox[1], bbox[2] - bbox[0]
       #get center of box
       ct = np.array(
