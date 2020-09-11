@@ -13,7 +13,7 @@ Object detection using center point detection:
 
 - **Simple Network:** A U-shape HarDNet-85 with Conv3x3, ReLU, bilinear interpolation upsampling, and Sum-to-1 layer normalization comprise the whole network. There is NO dilation/deformable convolution, nor any novel activation function being used.
 
-- **Efficient:** CenterNet-HarDNet85 model achieves **43.6** COCO mAP (test-dev) while running at **45** FPS on an NVIDIA GTX-1080Ti GPU.
+- **Efficient:** CenterNet-HarDNet85 model achieves **43.9** COCO mAP (test-dev) while running at **45** FPS on an NVIDIA GTX-1080Ti GPU.
 
 - **State of The Art:** CenterNet-HarDNet85's is faster than YOLOv4, SpineNet-49, and EfficientDet-D2
 
@@ -24,31 +24,31 @@ Object detection using center point detection:
 
 | Backbone     | #Param | GFLOPs | Input Size |  mAP(val) <br> / FPS(1080ti) | Flip mAP <br>/ FPS| Model |
 | :----------: | :----: | :----: | :--------: | :----------------: | :-----------: | :---: |
-| HarDNet85    | 37.2M  |  87.9  |  512x512   | 43.5 / 45 |  44.4 / 24   | [Download](https://ping-chao.com/hardnet/centernet_hardnet85_coco.pth) |
-| HarDNet85    | 37.2M  |  58.0  |  416x416   | 41.5 / 53 |  42.5 / 31   | as above |
+| HarDNet85    | 37.2M  |  87.9  |  512x512   | 43.6 / 45 |  44.4 / 24   | [Download](https://ping-chao.com/hardnet/centernet_hardnet85_coco.pth) |
+| HarDNet85    | 37.2M  |  58.0  |  416x416   | 41.7 / 53 |  42.6 / 31   | as above |
 
 The model was trained with Pytorch 1.5.0 on two V100-32GB GPU for **250 epochs** (seven days). Please see [experiment](experiments/ctdet_coco_hardnet85_2x.sh) for detailed hyperperameters. Using more GPUs may require sync-batchNorm to maintain the accuracy, and the learning rate may also need to adjust. You can also check if your training/val loss is roughly aligned with our [log](experiments/ctdet_coco_hardnet85_2x.log)
 
 HarDNet-85 results (no flipping) on COCO **test-dev2017**:
 ```
- Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.436
- Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.624
- Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.475
- Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.227
- Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.470
- Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.581
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.351
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.573
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.605
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.439
+ Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.626
+ Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.477
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.228
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.474
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.583
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.353
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.575
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.607
  Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.375
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.651
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.655
  Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.799
 ```
 ### Comparison with other state-of-the-art works
 
 |     Method   |  mAP(test-dev)  | FPS @ GPU |  Training epochs |
 | :----------: | :-------------: | :-------: | :--------------: |
-| CenterNet-HarDNet85 |  43.6    |  45 @ 1080Ti | 250 |
+| CenterNet-HarDNet85 |  43.9    |  45 @ 1080Ti | 250 |
 |  [YOLOv4](https://github.com/pjreddie/darknet)   |  43.5    |  33 @ P100 | 300 |
 |  [SpineNet-49](https://github.com/tensorflow/tpu/blob/master/models/official/detection/MODEL_ZOO.md)  |  42.8    |  42 @ V100 | 350 |
 | [EfficientDet-D2](https://github.com/zylo117/Yet-Another-EfficientDet-Pytorch) |  43.0 | 26.5 @ 2080Ti | 500 |
@@ -85,6 +85,7 @@ python demo.py ctdet --demo webcam --arch hardnet_85 --load_model centernet_hard
 | 512x512    |   256x256    |    33.0   |  11.3  | 34.4   |  56.8  | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_256x256_nano.trt) (117 ms) | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_256x256_xavier.trt) (17 ms) |
 | 512x512    |   224x224    |    30.1   |   8.9  | 30.4   |  54.0  | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_224x224_nano.trt) (105 ms) | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_224x224_xavier.trt) (16 ms) |
 
+- Above models are converted from previous 43.6 mAP model (test-dev). For the newer 43.9 mAP model, please convert it from pytorch model
 - Install NVIDIA JetPack 4.4 (TensorRT 7.1)
 - Install Pytorch > 1.3 for onnx opset 11 and pycuda
 - Run following commands with or without the above trt models. It will convert the pytorch model into onnx and TRT model when loading model with --load_model.
