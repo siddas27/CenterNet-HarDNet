@@ -22,28 +22,46 @@ Object detection using center point detection:
 
 ### Object Detection on COCO validation
 
-| Backbone     | #Param | GFLOPs | Input Size |  mAP<br>(val)  | mAP<br>(test-dev) |  FPS(1080ti) | Model |
-| :----------: | :----: | :----: | :--------: | :--------: | :-----------: | :----------: | :---: |
-| HarDNet85    | 37.2M  |  87.9  |  512x512   | 44.0 | 44.3 | 45  | [Download](https://ping-chao.com/hardnet/centernet_hardnet85_coco.pth) |
-| HarDNet85    | 37.2M  |  58.0  |  416x416   | 42.2 | 42.2 | 53  | as above |
+| Backbone     | #Param | GFLOPs | Train<br>Size | Input Size |  mAP<br>(val)  | mAP<br>(test-dev) | FPS<br>(1080ti) | Model |
+| :----------: | :----: | :----: | :-----------: | :--------: | :------------: | :---------------: |:--------------: | :---: |
+| HarDNet85    | 37.2M  | 123.9  |  608  |  608x608   | 44.9 | 45.3 | 32  | [Download](https://ping-chao.com/hardnet/centernet_hardnet85_coco_608.pth) |
+| HarDNet85    | 37.2M  |  87.9  |  512  |  512x512   | 44.3 | 44.3 | 45  | [Download](https://ping-chao.com/hardnet/centernet_hardnet85_coco.pth) |
+| HarDNet85    | 37.2M  |  58.0  |  512  |  416x416   | 42.4 | 42.4 | 53  | as above |
 
 The model was trained with Pytorch 1.5.0 on two V100-32GB GPU for **300 epochs**(eight days). Please see [experiment](experiments/ctdet_coco_hardnet85_2x.sh) for detailed hyperperameters. Using more GPUs may require sync-batchNorm to maintain the accuracy, and the learning rate may also need to adjust. You can also check if your training/val loss is roughly aligned with our [log](experiments/ctdet_coco_hardnet85_2x.log)
 
 HarDNet-85 results (no flipping) on COCO **test-dev2017**:
 ```
+ //512x512:
  Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.443
  Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.629
- Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.480
- Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.234
- Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.477
- Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.586
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.356
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.578
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.610
- Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.380
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.658
- Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.802
+ Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.483
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.235
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.476
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.590
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.355
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.579
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.612
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.381
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.660
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.805
+
+ //608x608:
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.453
+ Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.638
+ Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.495
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.255
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.485
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.588
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.359
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.591
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.625
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.402
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.669
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.804
 ```
+
+
 ### Comparison with other state-of-the-art works
 
 |     Method   |  mAP(test-dev)  | FPS @ GPU |  Training epochs |
@@ -85,7 +103,7 @@ python demo.py ctdet --demo webcam --arch hardnet_85 --load_model centernet_hard
 | 512x512    |   256x256    |    33.0   |  11.3  | 34.4   |  56.8  | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_256x256_nano.trt) (117 ms) | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_256x256_xavier.trt) (17 ms) |
 | 512x512    |   224x224    |    30.1   |   8.9  | 30.4   |  54.0  | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_224x224_nano.trt) (105 ms) | [Download](https://ping-chao.com/hardnet/ctdet_hardnet_85_224x224_xavier.trt) (16 ms) |
 
-- Above models are converted from previous 43.6 mAP model (test-dev). For the newer 44.3 mAP model, please convert it from pytorch model
+- Above models are converted from previous 43.6 mAP model (test-dev). For the latest 44.3 mAP model, please convert it from pytorch model
 - Install NVIDIA JetPack 4.4 (TensorRT 7.1)
 - Install Pytorch > 1.3 for onnx opset 11 and pycuda
 - Run following commands with or without the above trt models. It will convert the pytorch model into onnx and TRT model when loading model with --load_model.
