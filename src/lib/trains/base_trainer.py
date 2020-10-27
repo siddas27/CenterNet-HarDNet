@@ -63,6 +63,10 @@ class BaseTrainer(object):
         break
       data_time.update(time.time() - end)
 
+      if epoch < 2 and opt.wlr > 0:
+        cur_lr = ((iter_id+1) / num_iters)*(opt.lr - opt.wlr) + opt.wlr
+        for param_group in self.optimizer.param_groups:
+          param_group['lr'] = cur_lr
       for k in batch:
         if k != 'meta':
           batch[k] = batch[k].to(device=opt.device, non_blocking=True)    
