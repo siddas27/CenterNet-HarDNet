@@ -57,6 +57,8 @@ class BaseTrainer(object):
     avg_loss_stats = {l: AverageMeter() for l in self.loss_stats}
     num_iters = len(data_loader) if opt.num_iters < 0 else opt.num_iters
     bar = Bar('{}/{}'.format(opt.task, opt.exp_id), max=num_iters)
+
+    scaler = torch.cuda.amp.GradScaler(enabled=True)
     end = time.time()
     for iter_id, batch in enumerate(data_loader):
       if iter_id >= num_iters:
@@ -69,13 +71,17 @@ class BaseTrainer(object):
           param_group['lr'] = cur_lr
       for k in batch:
         if k != 'meta':
-          batch[k] = batch[k].to(device=opt.device, non_blocking=True)    
-      output, loss, loss_stats = model_with_loss(batch)
-      loss = loss.mean()
+          batch[k] = batch[k].to(device=opt.device, non_blocking=True) 
+      with torch.cuda.amp.autocast(device_type='cuda', dtype=torch.float16, enabled=True):
+        output, loss, loss_stats = model_with_loss(batch)
+        loss = loss.mean()
       if phase == 'train':
         self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
+        scaler.scale(loss).backward()
+        scaler.step(self.optimizer)
+        scaler.update()
+        # loss.backward()
+        # self.optimizer.step()
       batch_time.update(time.time() - end)
       end = time.time()
 
