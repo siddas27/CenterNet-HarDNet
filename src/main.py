@@ -22,6 +22,7 @@ def derivative_mod(m, gain):
             print(key)
 
 def main(opt):
+  torch.cuda.empty_cache()
   torch.manual_seed(opt.seed)
   torch.backends.cudnn.benchmark = not opt.not_cuda_benchmark and not opt.test
   Dataset = get_dataset(opt.dataset, opt.task)
